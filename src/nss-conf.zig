@@ -3,6 +3,7 @@ const flatdb = @import("deps/flatdb/flatdb.zig");
 const nss = @import("nss.zig");
 const trim = @import("trim.zig");
 const mem = std.mem;
+const meta = std.meta;
 const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
 const DelimitedBufferOptions = flatdb.DelimitedBufferOptions;
 
@@ -28,17 +29,21 @@ pub const Entry = struct {
         }
 
         pub fn next(this: *Iterator) ?Entry {
-            records: while (this.inner.next()) |record_line| {
+            records: while (this.inner.next()) |record| {
                 const fields = @typeInfo(nss.Database).@"enum".fields;
                 const db: nss.Database = tag: inline for (fields) |field| {
-                    if (mem.startsWith(u8, record_line, field.name ++ ":")) {
-                        break :tag @enumFromInt(field.value);
+                    if (mem.startsWith(u8, record, field.name ++ ":")) {
+                        const tag: nss.Database = @enumFromInt(field.value);
+
+                        if (meta.TagPayload(nss.DatabaseEntry, tag) != void) {
+                            break :tag tag;
+                        }
                     }
                 } else continue :records;
 
                 return Entry{
                     .database = db,
-                    .sources = trimLead(record_line[@tagName(db).len + 1 ..]),
+                    .sources = trimLead(record[@tagName(db).len + 1 ..]),
                 };
             }
 
