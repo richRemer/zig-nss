@@ -1,0 +1,3 @@
+[submodule "src/deps/flatdb"]
+	path = src/deps/flatdb
+	url = git@github.com:richRemer/zig-flatdb.git
