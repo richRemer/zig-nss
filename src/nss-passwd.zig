@@ -15,42 +15,41 @@ pub const Entry = struct {
     shell: []const u8,
 
     pub const key = "login";
-    pub const Iterator = EntryIterator;
+
+    pub const Iterator = struct {
+        inner: LineIterator,
+
+        pub fn init(buffer: []const u8) Iterator {
+            return .{ .inner = LineIterator.init(buffer) };
+        }
+
+        pub fn next(this: *Iterator) ?Entry {
+            while (this.inner.next()) |line| {
+                var entry: Entry = undefined;
+                var field_it = FieldIterator.init(line);
+
+                entry.login = field_it.next() orelse continue;
+                entry.password = field_it.next() orelse continue;
+                const uid = field_it.next() orelse continue;
+                const gid = field_it.next() orelse continue;
+                entry.info = field_it.next() orelse continue;
+                entry.home = field_it.next() orelse continue;
+                entry.shell = field_it.next() orelse continue;
+
+                if (field_it.next() != null) continue;
+
+                entry.uid = fmt.parseInt(u32, uid, 10) catch continue;
+                entry.gid = fmt.parseInt(u32, gid, 10) catch continue;
+
+                return entry;
+            }
+
+            return null;
+        }
+    };
 
     pub fn iterateInfo(this: Entry) InfoIterator {
         return InfoIterator.init(this.info);
-    }
-};
-
-pub const EntryIterator = struct {
-    inner: LineIterator,
-
-    pub fn init(buffer: []const u8) EntryIterator {
-        return .{ .inner = LineIterator.init(buffer) };
-    }
-
-    pub fn next(this: *EntryIterator) ?Entry {
-        while (this.inner.next()) |line| {
-            var entry: Entry = undefined;
-            var field_it = FieldIterator.init(line);
-
-            entry.login = field_it.next() orelse continue;
-            entry.password = field_it.next() orelse continue;
-            const uid = field_it.next() orelse continue;
-            const gid = field_it.next() orelse continue;
-            entry.info = field_it.next() orelse continue;
-            entry.home = field_it.next() orelse continue;
-            entry.shell = field_it.next() orelse continue;
-
-            if (field_it.next() != null) continue;
-
-            entry.uid = fmt.parseInt(u32, uid, 10) catch continue;
-            entry.gid = fmt.parseInt(u32, gid, 10) catch continue;
-
-            return entry;
-        }
-
-        return null;
     }
 };
 
@@ -78,7 +77,7 @@ test "read passwd" {
         \\
     ;
 
-    var it = EntryIterator.init(buffer);
+    var it = Entry.Iterator.init(buffer);
     const maybe_entry = it.next();
 
     try std.testing.expect(null != maybe_entry);

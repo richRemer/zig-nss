@@ -20,34 +20,34 @@ pub const Entry = struct {
     database: nss.Database,
     sources: []const u8,
 
-    pub fn iterateSources(this: Entry) SourceIterator {
-        return SourceIterator.init(this.sources);
-    }
-};
+    pub const Iterator = struct {
+        inner: RecordIterator,
 
-pub const EntryIterator = struct {
-    inner: RecordIterator,
-
-    pub fn init(buffer: []const u8) EntryIterator {
-        return .{ .inner = RecordIterator.init(buffer) };
-    }
-
-    pub fn next(this: *EntryIterator) ?Entry {
-        records: while (this.inner.next()) |record_line| {
-            const fields = @typeInfo(nss.Database).@"enum".fields;
-            const db: nss.Database = tag: inline for (fields) |field| {
-                if (mem.startsWith(u8, record_line, field.name ++ ":")) {
-                    break :tag @enumFromInt(field.value);
-                }
-            } else continue :records;
-
-            return Entry{
-                .database = db,
-                .sources = trimLeading(record_line[@tagName(db).len + 1 ..]),
-            };
+        pub fn init(buffer: []const u8) Iterator {
+            return .{ .inner = RecordIterator.init(buffer) };
         }
 
-        return null;
+        pub fn next(this: *Iterator) ?Entry {
+            records: while (this.inner.next()) |record_line| {
+                const fields = @typeInfo(nss.Database).@"enum".fields;
+                const db: nss.Database = tag: inline for (fields) |field| {
+                    if (mem.startsWith(u8, record_line, field.name ++ ":")) {
+                        break :tag @enumFromInt(field.value);
+                    }
+                } else continue :records;
+
+                return Entry{
+                    .database = db,
+                    .sources = trimLead(record_line[@tagName(db).len + 1 ..]),
+                };
+            }
+
+            return null;
+        }
+    };
+
+    pub fn iterateSources(this: Entry) SourceIterator {
+        return SourceIterator.init(this.sources);
     }
 };
 
@@ -70,9 +70,9 @@ const RecordIterator = struct {
     fn trim(line: []const u8) []const u8 {
         var trimmed = line;
 
-        trimmed = trimLeading(trimmed); // scan to non-WS
+        trimmed = trimLead(trimmed); // scan to non-WS
         trimmed = trimComment(trimmed); // scan to comment/end
-        trimmed = trimTrailing(trimmed); // scan back to final non-WS
+        trimmed = trimTail(trimmed); // scan back to final non-WS
 
         return trimmed;
     }
@@ -92,11 +92,11 @@ const SourceIterator = DelimitedBufferIterator(u8, .{
 
 const ws = &.{ ' ', '\t' };
 
-inline fn trimLeading(buffer: []const u8) []const u8 {
+inline fn trimLead(buffer: []const u8) []const u8 {
     return trim.ltrim(u8, buffer, ws);
 }
 
-inline fn trimTrailing(buffer: []const u8) []const u8 {
+inline fn trimTail(buffer: []const u8) []const u8 {
     return trim.rtrim(u8, buffer, ws);
 }
 
@@ -129,7 +129,7 @@ test "read nsswitch.conf" {
         \\
     ;
 
-    var it = EntryIterator.init(buffer);
+    var it = Entry.Iterator.init(buffer);
     const maybe_entry = it.next();
 
     try std.testing.expect(null != maybe_entry);
