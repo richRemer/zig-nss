@@ -1,5 +1,5 @@
 const std = @import("std");
-const flatdb = @import("deps/flatdb/flatdb.zig");
+const flatdb = @import("../deps/flatdb/flatdb.zig");
 const fmt = std.fmt;
 const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
 

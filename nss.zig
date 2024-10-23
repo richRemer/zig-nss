@@ -1,5 +1,7 @@
 const std = @import("std");
-const passwd = @import("nss-passwd.zig");
+const conf = @import("nss/conf.zig");
+const passwd = @import("nss/passwd.zig");
+const flatdb = @import("deps/flatdb/flatdb.zig");
 const meta = std.meta;
 const TagPayload = meta.TagPayload;
 
