@@ -1,5 +1,7 @@
 const std = @import("std");
 
+/// Trim buffer of matching values, starting at the beginning and stopping at
+/// the first non-matching value.  Return the trimmed buffer.
 pub fn ltrim(comptime T: type, buffer: []const T, vals: []const T) []const T {
     const index = idx: for (buffer, 0..) |val, i| {
         for (vals) |v| if (val == v) continue :idx;
@@ -9,6 +11,8 @@ pub fn ltrim(comptime T: type, buffer: []const T, vals: []const T) []const T {
     return buffer[index..];
 }
 
+/// Trim buffer of matching values, starting at the end and stopping at the
+/// first non-matching value.  Return the trimmed buffer.
 pub fn rtrim(comptime T: type, buffer: []const T, vals: []const T) []const T {
     var i = buffer.len;
 
@@ -21,6 +25,8 @@ pub fn rtrim(comptime T: type, buffer: []const T, vals: []const T) []const T {
     return buffer[0..index];
 }
 
+/// Trim buffer from beginning up to and including the last matching value.
+/// Return the trimmed buffer.
 pub fn since(comptime T: type, buffer: []const T, vals: []const T) []const T {
     var i = buffer.len;
 
@@ -32,10 +38,14 @@ pub fn since(comptime T: type, buffer: []const T, vals: []const T) []const T {
     return buffer;
 }
 
+/// Trim buffer of matching values, starting at each end stopping at the first
+/// non-matching value.  Return the trimmed buffer.
 pub fn trim(comptime T: type, buffer: []const T, vals: []const T) []const T {
     return rtrim(u8, ltrim(u8, buffer, vals), vals);
 }
 
+/// Trim buffer from first matching value to the end.  Return the trimmed
+/// buffer.
 pub fn until(comptime T: type, buffer: []const T, vals: []const T) []const T {
     for (buffer, 0..) |val, i| {
         for (vals) |v| if (val == v) return buffer[0..i];
@@ -66,7 +76,7 @@ test "trim variants resulting in empty string" {
     try std.testing.expectEqualStrings("", both);
 }
 
-test "trim until/since" {
+test "until/since" {
     const buffer = "foo bar,baz";
     const until_comma = until(u8, buffer, &.{','});
     const until_f = until(u8, buffer, &.{ 'f', 'F' });

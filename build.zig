@@ -6,13 +6,13 @@ pub fn build(b: *std.Build) void {
 
     const nss = b.addStaticLibrary(.{
         .name = "nss",
-        .root_source_file = b.path("src/nss.zig"),
+        .root_source_file = b.path("nss.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     const nss_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/nss.zig"),
+        .root_source_file = b.path("nss.zig"),
         .target = target,
         .optimize = optimize,
     });
