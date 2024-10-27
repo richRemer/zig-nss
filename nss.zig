@@ -9,6 +9,7 @@ const fs = std.fs;
 const TagPayload = meta.TagPayload;
 
 pub const conf = @import("nss/conf.zig");
+pub const group = @import("nss/group.zig");
 pub const passwd = @import("nss/passwd.zig");
 pub const files = @import("nss/files.zig");
 
@@ -118,34 +119,13 @@ pub const Source = enum {
 
 /// Supported database sources.
 pub const DatabaseSource = union(enum) {
+    group_files: files.GroupService,
     passwd_files: files.PasswdService,
-
-    pub fn tagFor(
-        db: Database,
-        source: Source,
-    ) ?@typeInfo(DatabaseSource).@"union".tag_type.? {
-        const db_name = @tagName(db);
-        const source_name = @tagName(source);
-        const Tag = @typeInfo(DatabaseSource).@"union".tag_type.?;
-        const fields = @typeInfo(Tag).@"enum".fields;
-
-        inline for (fields) |field| {
-            if (field.name.len == db_name.len + 1 + source_name.len) {
-                if (mem.startsWith(u8, field.name, db_name)) {
-                    if (mem.endsWith(u8, field.name, source_name)) {
-                        return @enumFromInt(field.value);
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
 };
 
 /// Generic database entry.  Union of all database entry types.
 pub const Entry = union(Database) {
-    group: void, // TODO
+    group: group.Entry,
     passwd: passwd.Entry,
 };
 
@@ -194,12 +174,19 @@ pub fn ServiceSwitch(db: Database) type {
 
         pub fn find(this: @This(), key: []const u8) ?T {
             for (this.sources) |source| {
-                if (DatabaseSource.tagFor(db, source)) |db_source| {
-                    const SourceService = svc: switch (db_source) {
-                        .passwd_files => break :svc files.PasswdService,
-                    };
+                const maybe_service = switch (db) {
+                    .group => switch (source) {
+                        .files => files.GroupService.init(this.nss),
+                        else => null,
+                    },
+                    .passwd => switch (source) {
+                        .files => files.PasswdService.init(this.nss),
+                        else => null,
+                    },
+                };
 
-                    return SourceService.init(this.nss).find(key);
+                if (maybe_service) |service| {
+                    return service.find(key);
                 }
             }
 
@@ -224,6 +211,24 @@ test "getent(.passwd, ...)" {
         try std.testing.expectEqualStrings("root", entry.info);
         try std.testing.expectEqualStrings("/root", entry.home);
         try std.testing.expectEqualStrings("/bin/bash", entry.shell);
+    } else {
+        return error.EntryNotFound;
+    }
+}
+
+test "getent(.group, ...)" {
+    const allocator = std.testing.allocator;
+    var nss = NSS.open(allocator);
+    defer nss.close();
+
+    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+
+    if (nss.getent(.group, "root")) |entry| {
+        try std.testing.expectEqualStrings("root", entry.name);
+        try std.testing.expectEqualStrings("x", entry.password);
+        try std.testing.expectEqual(0, entry.gid);
+        try std.testing.expectEqualStrings("", entry.users);
     } else {
         return error.EntryNotFound;
     }
