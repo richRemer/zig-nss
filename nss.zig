@@ -102,6 +102,7 @@ pub const Database = enum {
 /// implementation.
 pub const Source = enum {
     files, // supports pretty much everything
+    // TODO: https://man.archlinux.org/man/core/systemd/libnss_systemd.so.2.8.en
     systemd, // supports passwd, group, shadow, gshadow
 
     pub fn fromName(name: []const u8) ?Source {

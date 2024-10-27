@@ -5,7 +5,10 @@ const passwd = @import("passwd.zig");
 const NSS = @import("../nss.zig").NSS;
 const mem = std.mem;
 const fmt = std.fmt;
+const CutBufferIterator = flatdb.CutBufferIterator;
 const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
+const FilterBufferIterator = flatdb.FilterBufferIterator;
+const TrimBufferIterator = flatdb.TrimBufferIterator;
 
 /// Provide group service backed by /etc/group file.
 pub const GroupService = struct {
@@ -31,14 +34,13 @@ pub const GroupService = struct {
 
 /// Iterate over entries in buffer read from /etc/group.
 pub const GroupIterator = struct {
-    inner: LineIterator,
+    inner: RecordIterator,
 
     pub fn init(buffer: []const u8) GroupIterator {
-        return .{ .inner = LineIterator.init(buffer) };
+        return .{ .inner = RecordIterator.init(buffer) };
     }
 
     /// Return next entry.  Malformed entries are ignored.
-    /// TODO: handle comments
     pub fn next(this: *GroupIterator) ?group.Entry {
         while (this.inner.next()) |line| {
             var entry: group.Entry = undefined;
@@ -84,14 +86,13 @@ pub const PasswdService = struct {
 
 /// Iterate over entries in buffer read from /etc/passwd.
 pub const PasswdIterator = struct {
-    inner: LineIterator,
+    inner: RecordIterator,
 
     pub fn init(buffer: []const u8) PasswdIterator {
-        return .{ .inner = LineIterator.init(buffer) };
+        return .{ .inner = RecordIterator.init(buffer) };
     }
 
     /// Return next entry.  Malformed entries are ignored.
-    /// TODO: handle comments
     pub fn next(this: *PasswdIterator) ?passwd.Entry {
         while (this.inner.next()) |line| {
             var entry: passwd.Entry = undefined;
@@ -117,13 +118,28 @@ pub const PasswdIterator = struct {
     }
 };
 
-const LineIterator = DelimitedBufferIterator(u8, .{
-    .delims = &.{'\n'},
-    .delimit_mode = .terminator,
-    .collapse = true,
-});
+const RecordIterator = FilterBufferIterator(
+    TrimBufferIterator(CutBufferIterator(DelimitedBufferIterator(u8, .{
+        .delims = &.{'\n'},
+        .delimit_mode = .terminator,
+        .collapse = true,
+    }), u8, .{
+        .delims = &.{'#'},
+        .cut_mode = .after,
+        .scan_mode = .start,
+        .include_delim = true,
+    }), u8, .{
+        .trim = &.{ ' ', '\t' },
+    }),
+    u8,
+    non_empty,
+);
 
 const FieldIterator = DelimitedBufferIterator(u8, .{
     .delims = &.{':'},
     .delimit_mode = .separator,
 });
+
+fn non_empty(buffer: []const u8) bool {
+    return buffer.len > 0;
+}
