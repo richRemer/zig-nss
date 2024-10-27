@@ -18,14 +18,39 @@ pub const GroupService = struct {
         return .{ .nss = nss };
     }
 
-    /// Lookup group entry by name.
-    /// TODO: support GID
+    /// Lookup group entry by name or GID.
     pub fn find(this: GroupService, key: []const u8) ?group.Entry {
         const buffer = this.nss.open_file("/etc/group") catch return null;
+        const gid = fmt.parseInt(u32, key, 10) catch null;
         var it = GroupIterator.init(buffer);
 
         while (it.next()) |entry| {
             if (mem.eql(u8, entry.name, key)) return entry;
+            if (gid) |id| if (entry.gid == id) return entry;
+        }
+
+        return null;
+    }
+
+    /// Lookup group entry by GID.
+    pub fn findGid(this: GroupService, gid: u32) ?group.Entry {
+        const buffer = this.nss.open_file("/etc/group") catch return null;
+        var it = GroupIterator.init(buffer);
+
+        while (it.next()) |entry| {
+            if (entry.gid == gid) return entry;
+        }
+
+        return null;
+    }
+
+    /// Lookup group entry by name.
+    pub fn findName(this: GroupService, name: []const u8) ?group.Entry {
+        const buffer = this.nss.open_file("/etc/group") catch return null;
+        var it = GroupIterator.init(buffer);
+
+        while (it.next()) |entry| {
+            if (mem.eql(u8, entry.name, name)) return entry;
         }
 
         return null;
@@ -70,14 +95,39 @@ pub const PasswdService = struct {
         return .{ .nss = nss };
     }
 
-    /// Lookup passwd entry by login.
-    /// TODO: support UID
+    /// Lookup passwd entry by login or UID.
     pub fn find(this: PasswdService, key: []const u8) ?passwd.Entry {
         const buffer = this.nss.open_file("/etc/passwd") catch return null;
+        const uid = fmt.parseInt(u32, key, 10) catch null;
         var it = PasswdIterator.init(buffer);
 
         while (it.next()) |entry| {
             if (mem.eql(u8, entry.login, key)) return entry;
+            if (uid) |id| if (entry.uid == id) return entry;
+        }
+
+        return null;
+    }
+
+    /// Lookup passwd entry by login.
+    pub fn findLogin(this: PasswdService, login: []const u8) ?passwd.Entry {
+        const buffer = this.nss.open_file("/etc/passwd") catch return null;
+        var it = PasswdIterator.init(buffer);
+
+        while (it.next()) |entry| {
+            if (mem.eql(u8, entry.login, login)) return entry;
+        }
+
+        return null;
+    }
+
+    /// Lookup group entry by UID.
+    pub fn findUid(this: PasswdService, uid: u32) ?passwd.Entry {
+        const buffer = this.nss.open_file("/etc/passwd") catch return null;
+        var it = PasswdIterator.init(buffer);
+
+        while (it.next()) |entry| {
+            if (entry.uid == uid) return entry;
         }
 
         return null;
