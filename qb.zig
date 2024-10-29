@@ -31,33 +31,50 @@ pub fn QuickBuild(comptime spec: anytype) type {
             deps: Dependencies(spec),
             target: std.Build.ResolvedTarget,
             optimize: std.builtin.OptimizeMode,
+            debug: bool,
 
             pub fn init(b: *std.Build) Context {
-                log.debug("b.standardTargetOptions(.{{}})", .{});
-                log.debug("b.standardOptimizeOption(.{{}})", .{});
+                const debug = b.option(
+                    bool,
+                    "quick-build-debug",
+                    "Enable QuickBuild debug log.",
+                ) orelse false;
 
-                return .{
+                const context = Context{
                     .build = b,
                     .deps = .{},
                     .target = b.standardTargetOptions(.{}),
                     .optimize = b.standardOptimizeOption(.{}),
+                    .debug = debug,
                 };
+
+                context.log("b.standardTargetOptions(.{{}})", .{});
+                context.log("b.standardOptimizeOption(.{{}})", .{});
+
+                return context;
+            }
+
+            pub fn log(
+                this: Context,
+                comptime format: []const u8,
+                args: anytype,
+            ) void {
+                if (this.debug) qb_log.debug(format, args);
             }
         };
 
         /// Setup a build based on the build spec.
-        /// TODO: add simple way to enable logging
         pub fn setup(b: *std.Build) !void {
             var context = Context.init(b);
             const Spec = @TypeOf(spec);
 
-            log.debug("test_step = b.step(\"test\", \"Run unit tests\")", .{});
+            context.log("test_step = b.step(\"test\", \"Run unit tests\")", .{});
             _ = b.step("test", "Run unit tests");
 
             inline for (@typeInfo(Dependencies(spec)).@"struct".fields) |f| {
                 const name = f.name;
 
-                log.debug("{s} = b.dependency(\"{s}\", .{{...}})", .{ name, name });
+                context.log("{s} = b.dependency(\"{s}\", .{{...}})", .{ name, name });
                 @field(context.deps, name) = context.build.dependency(name, .{
                     .target = context.target,
                     .optimize = context.optimize,
@@ -127,7 +144,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
             out_spec: anytype,
             context: *Context,
         ) void {
-            log.debug(
+            context.log(
                 "artifact = b.addExecutable(.{{.name=\"{s}\", .root_source_file=\"{s}\", ...}})",
                 .{ name, path.src_path.sub_path },
             );
@@ -149,7 +166,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
             out_spec: anytype,
             context: *Context,
         ) void {
-            log.debug(
+            context.log(
                 "artifact = b.addStaticLibrary(.{{.name=\"{s}\", .root_source_file=\"{s}\", ...}})",
                 .{ name, path.src_path.sub_path },
             );
@@ -173,7 +190,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
         ) void {
             const Out = @TypeOf(out_spec);
 
-            log.debug(
+            context.log(
                 "module = b.addModule(\"{s}\", .{{.root_source_file=\"{s}\", ...}})",
                 .{ name, path.src_path.sub_path },
             );
@@ -192,7 +209,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
                     const dep_name = @tagName(@field(zig_spec, import.name));
                     const dep = @field(context.deps, dep_name).?;
 
-                    log.debug(
+                    context.log(
                         "module.addImport(\"{s}\", {s}.module(\"{s}\"))",
                         .{ dep_name, dep_name, dep_name },
                     );
@@ -211,7 +228,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
             const Out = @TypeOf(out_spec);
 
             if (context.build.top_level_steps.get("test")) |test_step| {
-                log.debug(
+                context.log(
                     "artifact = b.addTest(.{{.root_source_file=\"{s}\", ...}})",
                     .{path.src_path.sub_path},
                 );
@@ -221,20 +238,20 @@ pub fn QuickBuild(comptime spec: anytype) type {
                     .optimize = context.optimize,
                 });
 
-                log.debug("run_test = b.addRunArtifact(artifact)", .{});
+                context.log("run_test = b.addRunArtifact(artifact)", .{});
                 const run_test = context.build.addRunArtifact(artifact);
 
                 if (@hasField(Out, "sys")) {
-                    log.debug("artifact.linkLibC()");
+                    context.log("artifact.linkLibC()");
                     artifact.linkLibC();
-                    This.setupSysLinks(artifact, out_spec.sys);
+                    This.setupSysLinks(artifact, out_spec.sys, context);
                 }
 
                 if (@hasField(Out, "zig")) {
                     This.setupZigImports(artifact, out_spec.zig, context);
                 }
 
-                log.debug("test_step.step.dependOn(&run_test.step)", .{});
+                context.log("test_step.step.dependOn(&run_test.step)", .{});
                 test_step.step.dependOn(&run_test.step);
             }
         }
@@ -250,16 +267,16 @@ pub fn QuickBuild(comptime spec: anytype) type {
             const Out = @TypeOf(out_spec);
 
             if (@hasField(Out, "sys")) {
-                log.debug("artifact.linkLibC()");
+                context.log("artifact.linkLibC()");
                 artifact.linkLibC();
-                This.setupSysLinks(artifact, out_spec.sys);
+                This.setupSysLinks(artifact, out_spec.sys, context);
             }
 
             if (@hasField(Out, "zig")) {
                 This.setupZigImports(artifact, out_spec.zig, context);
             }
 
-            log.debug("b.installArtifact(artifact)", .{});
+            context.log("b.installArtifact(artifact)", .{});
             context.build.installArtifact(artifact);
         }
 
@@ -267,12 +284,13 @@ pub fn QuickBuild(comptime spec: anytype) type {
         fn setupSysLinks(
             artifact: *std.Build.Step.Compile,
             sys_spec: anytype,
+            context: *Context,
         ) void {
             const sys_info = @typeInfo(@TypeOf(sys_spec));
 
             inline for (sys_info.@"struct".fields) |link| {
                 const name = @tagName(@field(sys_spec, link.name));
-                log.debug("artifact.linkSystemLibrary(\"{s}\")", .{name});
+                context.log("artifact.linkSystemLibrary(\"{s}\")", .{name});
                 artifact.linkSystemLibrary(name);
             }
         }
@@ -289,7 +307,7 @@ pub fn QuickBuild(comptime spec: anytype) type {
                 const name = @tagName(@field(zig_spec, import.name));
                 const dep = @field(context.deps, name).?;
 
-                log.debug(
+                context.log(
                     "artifact.root_module.addImport(\"{s}\", {s}.module(\"{s}\"))",
                     .{ name, name, name },
                 );
@@ -350,22 +368,4 @@ fn Null(comptime T: type) type {
 }
 
 /// Scoped log.
-const log = std.log.scoped(.qb);
-
-// pub const std_options = .{
-//     .logFn = logFn,
-//     .log_scope_levels = &.{
-//         .{ .scope = .qb, .level = .warn, }
-//     }
-// };
-
-// fn logFn(
-//     comptime level: std.log.Level,
-//     comptime scope: @TypeOf(.enum_literal),
-//     comptime format: []const u8,
-//     args: anytype,
-// ) void {
-//     if (scope != .qb) {
-//         std.log.defaultLog(level, scope, format, args);
-//     }
-// }
+const qb_log = std.log.scoped(.qb);
