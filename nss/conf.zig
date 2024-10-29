@@ -1,13 +1,11 @@
 const std = @import("std");
-const flatdb = @import("../deps/flatdb/flatdb.zig");
 const nss = @import("../nss.zig");
 const ltrim = @import("data/trim.zig").ltrim;
 const rtrim = @import("data/trim.zig").rtrim;
 const until = @import("data/trim.zig").until;
+const DelimitedBufferIterator = @import("flatdb").DelimitedBufferIterator;
 const mem = std.mem;
 const meta = std.meta;
-const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
-const DelimitedBufferOptions = flatdb.DelimitedBufferOptions;
 
 // TODO: test various corner cases in GNU implementation
 // TODO:    - whitespace before db name

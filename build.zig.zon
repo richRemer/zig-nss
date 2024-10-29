@@ -2,7 +2,10 @@
     .name = "nss",
     .version = "0.0.1",
     .dependencies = .{
-        .flatdb = .{ .path = "deps/flatdb" },
+        .flatdb = .{
+            .url = "https://github.com/richRemer/zig-flatdb/archive/3e7958c69ae637db2d0770ae0c2aae6c5c921974.tar.gz",
+            .hash = "12209abfc93feb4c07c121a525196150a8ffa1289e8e36d93fdf5e7e8c102f273ba7",
+        },
     },
     .paths = .{
         "build.zig",

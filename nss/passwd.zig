@@ -1,5 +1,4 @@
-const flatdb = @import("../deps/flatdb/flatdb.zig");
-const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
+const DelimitedBufferIterator = @import("flatdb").DelimitedBufferIterator;
 
 /// Entry for passwd database.
 pub const Entry = struct {

@@ -1,5 +1,4 @@
 const std = @import("std");
-const flatdb = @import("deps/flatdb/flatdb.zig");
 const mem = std.mem;
 const heap = std.heap;
 const math = std.math;

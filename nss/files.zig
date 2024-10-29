@@ -1,14 +1,13 @@
 const std = @import("std");
-const flatdb = @import("../deps/flatdb/flatdb.zig");
 const group = @import("group.zig");
 const passwd = @import("passwd.zig");
 const NSS = @import("../nss.zig").NSS;
+const CutBufferIterator = @import("flatdb").CutBufferIterator;
+const DelimitedBufferIterator = @import("flatdb").DelimitedBufferIterator;
+const FilterBufferIterator = @import("flatdb").FilterBufferIterator;
+const TrimBufferIterator = @import("flatdb").TrimBufferIterator;
 const mem = std.mem;
 const fmt = std.fmt;
-const CutBufferIterator = flatdb.CutBufferIterator;
-const DelimitedBufferIterator = flatdb.DelimitedBufferIterator;
-const FilterBufferIterator = flatdb.FilterBufferIterator;
-const TrimBufferIterator = flatdb.TrimBufferIterator;
 
 /// Provide group service backed by /etc/group file.
 pub const GroupService = struct {
