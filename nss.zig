@@ -56,6 +56,34 @@ pub const NSS = struct {
         return service.find(key);
     }
 
+    /// Lookup group database entry by GID.
+    pub fn getgrgid(this: *NSS, gid: u32) ?group.Entry {
+        const service = ServiceSwitch(.group).init(this) catch return null;
+        defer service.deinit();
+        return service.findGid(gid);
+    }
+
+    /// Lookup group database entry by name.
+    pub fn getgrnam(this: *NSS, name: []const u8) ?group.Entry {
+        const service = ServiceSwitch(.group).init(this) catch return null;
+        defer service.deinit();
+        return service.findName(name);
+    }
+
+    /// Lookup passwd database entry by login.
+    pub fn getpwnam(this: *NSS, login: []const u8) ?passwd.Entry {
+        const service = ServiceSwitch(.passwd).init(this) catch return null;
+        defer service.deinit();
+        return service.findLogin(login);
+    }
+
+    /// Lookup passwd database entry by UID.
+    pub fn getpwuid(this: *NSS, uid: u32) ?passwd.Entry {
+        const service = ServiceSwitch(.passwd).init(this) catch return null;
+        defer service.deinit();
+        return service.findUid(uid);
+    }
+
     /// Open, read, and cache a file.  Use cached value if available.
     pub fn open_file(this: *NSS, absolute_path: []const u8) ![]const u8 {
         if (this.files.get(absolute_path)) |buffer| {
@@ -140,6 +168,70 @@ pub const Service = union(Database) {
 pub fn ServiceSwitch(db: Database) type {
     const T = TagPayload(Entry, db);
 
+    const group_impl = struct {
+        pub fn findGid(this: anytype, gid: u32) ?group.Entry {
+            for (this.sources) |source| {
+                const maybe_service = switch (source) {
+                    .files => files.GroupService.init(this.nss),
+                    else => null,
+                };
+
+                if (maybe_service) |service| {
+                    if (service.findGid(gid)) |entry| return entry;
+                }
+            }
+
+            return null;
+        }
+
+        pub fn findName(this: anytype, name: []const u8) ?group.Entry {
+            for (this.sources) |source| {
+                const maybe_service = switch (source) {
+                    .files => files.GroupService.init(this.nss),
+                    else => null,
+                };
+
+                if (maybe_service) |service| {
+                    if (service.findName(name)) |entry| return entry;
+                }
+            }
+
+            return null;
+        }
+    };
+
+    const passwd_impl = struct {
+        pub fn findLogin(this: anytype, login: []const u8) ?passwd.Entry {
+            for (this.sources) |source| {
+                const maybe_service = switch (source) {
+                    .files => files.PasswdService.init(this.nss),
+                    else => null,
+                };
+
+                if (maybe_service) |service| {
+                    if (service.findLogin(login)) |entry| return entry;
+                }
+            }
+
+            return null;
+        }
+
+        pub fn findUid(this: anytype, uid: u32) ?passwd.Entry {
+            for (this.sources) |source| {
+                const maybe_service = switch (source) {
+                    .files => files.PasswdService.init(this.nss),
+                    else => null,
+                };
+
+                if (maybe_service) |service| {
+                    if (service.findUid(uid)) |entry| return entry;
+                }
+            }
+
+            return null;
+        }
+    };
+
     return struct {
         nss: *NSS,
         sources: []const Source,
@@ -192,6 +284,9 @@ pub fn ServiceSwitch(db: Database) type {
 
             return null;
         }
+
+        pub usingnamespace if (db == .group) group_impl else struct {};
+        pub usingnamespace if (db == .passwd) passwd_impl else struct {};
     };
 }
 
@@ -229,6 +324,84 @@ test "getent(.group, ...)" {
         try std.testing.expectEqualStrings("x", entry.password);
         try std.testing.expectEqual(0, entry.gid);
         try std.testing.expectEqualStrings("", entry.users);
+    } else {
+        return error.EntryNotFound;
+    }
+}
+
+test "getgrgid(...)" {
+    const allocator = std.testing.allocator;
+    var nss = NSS.open(allocator);
+    defer nss.close();
+
+    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+
+    if (nss.getgrgid(0)) |entry| {
+        try std.testing.expectEqualStrings("root", entry.name);
+        try std.testing.expectEqualStrings("x", entry.password);
+        try std.testing.expectEqual(0, entry.gid);
+        try std.testing.expectEqualStrings("", entry.users);
+    } else {
+        return error.EntryNotFound;
+    }
+}
+
+test "getgrnam(...)" {
+    const allocator = std.testing.allocator;
+    var nss = NSS.open(allocator);
+    defer nss.close();
+
+    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+
+    if (nss.getgrnam("root")) |entry| {
+        try std.testing.expectEqualStrings("root", entry.name);
+        try std.testing.expectEqualStrings("x", entry.password);
+        try std.testing.expectEqual(0, entry.gid);
+        try std.testing.expectEqualStrings("", entry.users);
+    } else {
+        return error.EntryNotFound;
+    }
+}
+
+test "getpwnam(...)" {
+    const allocator = std.testing.allocator;
+    var nss = NSS.open(allocator);
+    defer nss.close();
+
+    try mock_file(&nss, "/etc/nsswitch.conf", "passwd: files\n");
+    try mock_file(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
+
+    if (nss.getpwnam("root")) |entry| {
+        try std.testing.expectEqualStrings("root", entry.login);
+        try std.testing.expectEqualStrings("x", entry.password);
+        try std.testing.expectEqual(0, entry.uid);
+        try std.testing.expectEqual(0, entry.gid);
+        try std.testing.expectEqualStrings("root", entry.info);
+        try std.testing.expectEqualStrings("/root", entry.home);
+        try std.testing.expectEqualStrings("/bin/bash", entry.shell);
+    } else {
+        return error.EntryNotFound;
+    }
+}
+
+test "getpwuid(...)" {
+    const allocator = std.testing.allocator;
+    var nss = NSS.open(allocator);
+    defer nss.close();
+
+    try mock_file(&nss, "/etc/nsswitch.conf", "passwd: files\n");
+    try mock_file(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
+
+    if (nss.getpwuid(0)) |entry| {
+        try std.testing.expectEqualStrings("root", entry.login);
+        try std.testing.expectEqualStrings("x", entry.password);
+        try std.testing.expectEqual(0, entry.uid);
+        try std.testing.expectEqual(0, entry.gid);
+        try std.testing.expectEqualStrings("root", entry.info);
+        try std.testing.expectEqualStrings("/root", entry.home);
+        try std.testing.expectEqualStrings("/bin/bash", entry.shell);
     } else {
         return error.EntryNotFound;
     }
