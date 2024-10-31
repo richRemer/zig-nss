@@ -11,6 +11,7 @@ pub const conf = @import("nss/conf.zig");
 pub const group = @import("nss/group.zig");
 pub const passwd = @import("nss/passwd.zig");
 pub const files = @import("nss/files.zig");
+pub const testing = @import("nss/testing.zig");
 
 /// NSS service context.
 pub const NSS = struct {
@@ -295,8 +296,8 @@ test "getent(.passwd, ...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "passwd: files\n");
-    try mock_file(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "passwd: files\n");
+    try testing.mockFile(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
 
     if (nss.getent(.passwd, "root")) |entry| {
         try std.testing.expectEqualStrings("root", entry.login);
@@ -316,8 +317,8 @@ test "getent(.group, ...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
-    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try testing.mockFile(&nss, "/etc/group", "root:x:0:\n");
 
     if (nss.getent(.group, "root")) |entry| {
         try std.testing.expectEqualStrings("root", entry.name);
@@ -334,8 +335,8 @@ test "getgrgid(...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
-    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try testing.mockFile(&nss, "/etc/group", "root:x:0:\n");
 
     if (nss.getgrgid(0)) |entry| {
         try std.testing.expectEqualStrings("root", entry.name);
@@ -352,8 +353,8 @@ test "getgrnam(...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "group: files\n");
-    try mock_file(&nss, "/etc/group", "root:x:0:\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "group: files\n");
+    try testing.mockFile(&nss, "/etc/group", "root:x:0:\n");
 
     if (nss.getgrnam("root")) |entry| {
         try std.testing.expectEqualStrings("root", entry.name);
@@ -370,8 +371,8 @@ test "getpwnam(...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "passwd: files\n");
-    try mock_file(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "passwd: files\n");
+    try testing.mockFile(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
 
     if (nss.getpwnam("root")) |entry| {
         try std.testing.expectEqualStrings("root", entry.login);
@@ -391,8 +392,8 @@ test "getpwuid(...)" {
     var nss = NSS.open(allocator);
     defer nss.close();
 
-    try mock_file(&nss, "/etc/nsswitch.conf", "passwd: files\n");
-    try mock_file(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
+    try testing.mockFile(&nss, "/etc/nsswitch.conf", "passwd: files\n");
+    try testing.mockFile(&nss, "/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n");
 
     if (nss.getpwuid(0)) |entry| {
         try std.testing.expectEqualStrings("root", entry.login);
@@ -405,15 +406,4 @@ test "getpwuid(...)" {
     } else {
         return error.EntryNotFound;
     }
-}
-
-fn mock_file(nss: *NSS, path: []const u8, data: []const u8) !void {
-    const allocator = nss.allocator;
-    const key = try allocator.dupe(u8, path);
-    errdefer allocator.free(key);
-
-    const val = try allocator.dupe(u8, data);
-    errdefer allocator.free(val);
-
-    try nss.files.put(key, val);
 }
